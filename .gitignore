@@ -1,0 +1,6 @@
+setup-x86*.exe
+venv
+qbackup.sshkey
+qbackup.sshkey.pub
+qbackup.json
+
