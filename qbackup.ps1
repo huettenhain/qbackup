@@ -139,7 +139,7 @@ if ($Borg.IsPresent) {
             $archive = (Get-Date).ToString('yyyy-MM-dd_HH-mm-ss')
             Push-Location $tmpd
             Info 'saving permissions to file .acls'
-            IcAcls (Quote (Join-Path $tmpd $relpath)) /save .acls /T /C /Q | Out-Null 
+            & IcAcls (Quote (Join-Path $tmpd $relpath)) /save .acls /T /C /Q 2>&1 | Out-Null 
             Borg ([string]::Format('create -C zlib,9 --stats ::{0} .acls "{1}"',
                 $archive, $relpath.Replace('\','/') ))
             Pop-Location
