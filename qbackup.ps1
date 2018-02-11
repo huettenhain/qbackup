@@ -1,17 +1,9 @@
 [CmdletBinding(DefaultParameterSetName='auto')]
 Param(
-  [Parameter(ParameterSetName='show')]
-  [Parameter(ParameterSetName='borg')]
-  [Parameter(ParameterSetName='auto')]
+  [Parameter(ParameterSetName='config')]
     [switch] $SetSecret,
-  [Parameter(ParameterSetName='show')]
-  [Parameter(ParameterSetName='borg')]
-  [Parameter(ParameterSetName='auto')]
-    [string] $SetRemote='',
-  [Parameter(ParameterSetName='show')]
-  [Parameter(ParameterSetName='borg')]
-  [Parameter(ParameterSetName='auto')]
-    [string] $SetBinary='',
+  [Parameter(ParameterSetName='config')]
+    [switch] $Configure,
   [Parameter(ParameterSetName='show',Mandatory=$True)]
     [switch] $IddQd,
   [Parameter(ParameterSetName='borg',Mandatory=$True)]
@@ -76,14 +68,17 @@ if (-Not $stats.containsKey('secret') -Or $SetSecret.IsPresent) {
   }
 }
 
-if ($SetRemote -Ne '') {
-  $stats.remote = $SetRemote 
-}
-
-if (-Not $stats.containsKey('remote')) {
-  Announce 'Enter Remote: ' 
-  $remote = Read-Host 
-  $stats.Add('remote', $remote)
+'remote', 'binary' | ForEach {
+  if (-Not $stats.containsKey($_)) {
+    $nv = Read-Host ('provide value for setting ' + $_)
+    $stats.Add($_, $nv)
+  } elseif ($Configure.IsPresent) {
+    Write-Output    ('current value for setting ' + $_ + ': ' + $stats[$_])
+    $nv = Read-Host ('enter a new value or leave blank')
+    if (-Not [string]::IsNullOrWhiteSpace($nv)) {
+      $stats[$_] = $nv 
+    }
+  }
 }
 
 $stats | ConvertTo-Json | Set-Content $QBSettingsFile
@@ -113,7 +108,7 @@ if ($Init.IsPresent) {
 
 if ($Borg.IsPresent) {
   Borg $BorgArguments
-} elseif (Test-Path $BackupPath) {
+} elseif (-Not [string]::IsNullOrWhiteSpace($BackupPath)) {
   $Backup = Get-Item $BackupPath
   $Drive = $Backup.PSDrive.Name
   $BackupNoDrivePath = (Split-Path $Backup.FullName -NoQualifier).Substring(1)
