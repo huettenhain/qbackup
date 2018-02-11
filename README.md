@@ -41,7 +41,11 @@ The qBackup configuration is stored in a JSON file called `qbackup.json`. If the
     "pruned":  "--keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20"
 }
 ```
-It also contains the value `remote`, which stores the URL to your remote backup location, i.e. a value similar to `ssh://user@backup.server/~/backups/`. The encryption passphrase for the remote backup is stored as a DPAPI-encrypted string in the field `secret` of this json file. Furthermore:
+It also contains the value `remote`, which stores the URL to your remote backup location, i.e. a value similar to
+```
+ssh://user@backup.server/home/user/backups/
+```
+The encryption passphrase for the remote backup is stored as a DPAPI-encrypted string in the field `secret` of this json file. Furthermore:
 - `binary` stores the *remote* path to your borg executable.
 - `bflags` are parameters passed to the borg command for each **create** operation.
 - `format` is the format for the remote backup archive name and for the local logfile. The remote backup will have the name `::format` while the local log files will have the name `format.log`.
