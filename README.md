@@ -26,18 +26,17 @@ It will then hand over to [Cygwin]'s bash to do the following:
 
 ## The Backup Script
 
-The Syntax of qBackup is as follows:
+You can call qBackup in one of the following ways:
 ```
-./qbackup.ps1 [-IDDQD] [-Verbose] [-Init] [DIRECTORY]
-              [-SetSecret] [-Configure]
+./qbackup.ps1 -IDDQD
+./qbackup.ps1 [-Init] DIRECTORY
+./qbackup.ps1 -Configure [-SetSecret] 
 ```
 
 Here is a brief explanation:
 - `-IDDQD` outputs the backup encryption passphrase to stdout. It exists so qBackup can set the `BORG_PASSCOMMAND` environment variable to `qBackup.ps1 -IDDQD`. 
-- `-Verbose` will yield more verbose output, it's mostly for debugging.
-- `-Init` has to be specified the first time you run qBackup against a remote, it will initialize the borg backup repository.
-- `-SetSecret` instructs qBackup to prompt for a new backup encryption passphrase when `-Configure` is specified.
-- `-Configure` allows you to configure the borg backend. Example:
+- When providing a directory name as the final parameter, qBackup will backup this directory. The `-Init` switch has to be added the first time you run qBackup against a remote, it will initialize the backend.
+- `-Configure` allows you to configure the borg backend. The `-SetSecret` switch instructs qBackup to prompt for a new backup encryption passphrase.
 
 ```
 .\qbackup.ps1 -Configure
