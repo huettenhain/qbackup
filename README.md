@@ -29,20 +29,23 @@ It will then hand over to [Cygwin]'s bash to do the following:
 The Syntax of qBackup is as follows:
 ```
 ./qbackup.ps1 [-IDDQD] [-Verbose] [-Init] [DIRECTORY]
-              [-SetSecret] 
-              [-SetRemote ssh://user@backup.server/home/user/backups/] 
-              [-SetBinary /usr/local/bin/borg]
+              [-SetSecret] [-Configure]
 ```
 
 Here is a brief explanation:
 - `-IDDQD` outputs the backup encryption passphrase to stdout. It exists so qBackup can set the `BORG_PASSCOMMAND` environment variable to `qBackup.ps1 -IDDQD`. 
 - `-Verbose` will yield more verbose output, it's mostly for debugging.
 - `-Init` has to be specified the first time you run qBackup against a remote, it will initialize the borg backup repository.
-- `-SetSecret` instructs qBackup to prompt for a new backup encryption passphrase and store it locally (encrypted using the user's login data).
-- `-SetRemote` sets the destination for your backups.
-- `-SetBinary` sets the remote borg binary to be used at the remote.
+- `-SetSecret` instructs qBackup to prompt for a new backup encryption passphrase when `-Configure` is specified.
+- `-Configure` allows you to configure the borg backend. Example:
 
-All settings are stored in the file `qbackup.json`. 
+```
+.\qbackup.ps1 -Configure
+provide value for setting remote: ssh://user@backup.server/home/user/backups/
+provide value for setting binary: /usr/local/bin/borg
+```
+
+All settings are stored in the file `qbackup.json` and except for the DPAPI-encrypted passphrase, all can be edited manually there.
 
 When run, qBackup will create a shadow copy of the disk where `DIRECTORY` is located, then mount this shadow copy in a temporary folder. It will then backup the NTFS permissions of all files in the shadow copy of `DIRECTORY` to a file called `.acls`. Finally, it will run borg against this file and the shadow-copy of `DIRECTORY`, using a timestamp in the format `::YYYY-MM-DD_HH-MM-SS` as the name for this backup in borg.
 
