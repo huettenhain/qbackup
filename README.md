@@ -26,27 +26,42 @@ It will then hand over to [Cygwin]'s bash to do the following:
 
 ## The Backup Script
 
-You can call qBackup in one of the following ways:
-```
-./qbackup.ps1 -IDDQD
-./qbackup.ps1 [-Init] DIRECTORY
-./qbackup.ps1 -Configure [-SetSecret] 
-```
+You can call qBackup in one of the following ways, but one rule always holds:
 
-Here is a brief explanation:
-- `-IDDQD` outputs the backup encryption passphrase to stdout. It exists so qBackup can set the `BORG_PASSCOMMAND` environment variable to `qBackup.ps1 -IDDQD`. 
-- When providing a directory name as the final parameter, qBackup will backup this directory. The `-Init` switch has to be added the first time you run qBackup against a remote, it will initialize the backend.
-- `-Configure` allows you to configure the borg backend. The `-SetSecret` switch instructs qBackup to prompt for a new backup encryption passphrase.
+#### `qbackup.ps1 -IDDQD` 
+This command outputs the backup encryption passphrase to stdout. It exists so qBackup can set the `BORG_PASSCOMMAND` environment variable to `qBackup.ps1 -IDDQD`. 
 
+#### `qbackup.ps1 [-SetSecret] -Configure` 
+The qBackup configuration is stored in a JSON file called `qbackup.json`. If the file does not exist or values are missing from it, the following default values are used:
+```json
+{
+    "binary":  "borg",
+    "bflags":  "--stats --list --filter=ME",
+    "format":  "yyyy-MM-dd_HH-mm-ss",
+    "pruned":  "--keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20"
+}
 ```
-.\qbackup.ps1 -Configure
-provide value for setting remote: ssh://user@backup.server/home/user/backups/
-provide value for setting binary: /usr/local/bin/borg
-```
+It also contains the value `remote`, which stores the URL to your remote backup location, i.e. a value similar to `ssh://user@backup.server/~/backups/`. The encryption passphrase for the remote backup is stored as a DPAPI-encrypted string in the field `secret` of this json file. Furthermore:
+- `binary` stores the *remote* path to your borg executable.
+- `bflags` are parameters passed to the borg command for each **create** operation.
+- `format` is the format for the remote backup archive name and for the local logfile. The remote backup will have the name `::format` while the local log files will have the name `format.log`.
+- `pruned` contains the parameters passed to each **prune** operation.
 
-All settings are stored in the file `qbackup.json` and except for the DPAPI-encrypted passphrase, all can be edited manually there.
+The command `-Configure` is a (debatably) convenient way to change these settings, but you can also just go ahead and edit the json file, of course. Notably however, the only way to really change the stored encryption key is by calling `-Configure` with the `-SetSecret` option.
 
-When run, qBackup will create a shadow copy of the disk where `DIRECTORY` is located, then mount this shadow copy in a temporary folder. It will then backup the NTFS permissions of all files in the shadow copy of `DIRECTORY` to a file called `.acls`. Finally, it will run borg against this file and the shadow-copy of `DIRECTORY`, using a timestamp in the format `::YYYY-MM-DD_HH-MM-SS` as the name for this backup in borg.
+#### `qbackup.ps1 -Borg [BORGARGS]` 
+
+Simply run borg with the specified arguments. The `BORG_REPO`, `BORG_PASSCOMMAND`, `BORG_RSH` and `BORG_REMOTE_PATH` environment variables will be set, so you can e.g. simply call `qbackup.ps1 list` to list your remote archives.
+
+#### `qbackup.ps1 [-ACLs] [-Log] [-Pruned] [-Init]  DIRECTORY [BORGARGS]`
+
+When run, qBackup will create a shadow copy of the disk where `DIRECTORY` is located, then mount this shadow copy in a temporary folder. If `-ACLs` is specified, it will backup the NTFS permissions of all files in the shadow copy of `DIRECTORY` to a file called `.acls`. 
+
+The script will then backup the files from the shadow copy using the **create** operation of borg. The borg archive name  is derived from the current date and time according to the `format` setting. All aditional parameters from `BORGARGS` as well as those from the `bflags` setting will also be passed to this `borg` call. If the `-Log` option is specified, qBackup will create a logfile containing the output of `borg`. 
+
+If the `-Pruned` option is specified, qBackup will then prune the remote archive according to the `pruned` setting. 
+
+Finally, the `-Init` option has to be set if and only if you run qBackup against a remote for the first time.
 
 
 [borgbackup]: https://github.com/borgbackup

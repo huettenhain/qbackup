@@ -8,45 +8,57 @@ Param(
     [switch] $IddQd,
   [Parameter(ParameterSetName='borg',Mandatory=$True)]
     [switch] $Borg,
-  [parameter(ParameterSetName='borg',ValueFromRemainingArguments=$True)]
-    $BorgArguments,
   [Parameter(ParameterSetName='auto')]
     [switch] $Init,
+  [Parameter(ParameterSetName='auto')]
+    [switch] $ACLs,
+  [Parameter(ParameterSetName='auto')]
+    [switch] $Pruned,
+  [Parameter(ParameterSetName='auto')]
+    [switch] $Log,
   [Parameter(ParameterSetName='auto',Position=0,Mandatory=$True)] 
   [ValidateNotNullOrEmpty()]
-    [string] $BackupPath
+    [string] $BackupPath,
+  [parameter(ParameterSetName='borg',ValueFromRemainingArguments=$True)]
+  [parameter(ParameterSetName='auto',ValueFromRemainingArguments=$True)]
+      $brgs
 )
 
+$env:Path = [string]::Format("{0};{1}", $PSScriptRoot, $env:Path)
 $SSHKeyFileName = Join-Path $PSScriptRoot 'qbackup.sshkey'
 $QBSettingsFile = Join-Path $PSScriptRoot 'qbackup.json'
 
-$borgbat = Join-Path $PSScriptRoot 'borg.bat'
-$qprefix = '-- '
+if (-not (Test-Path env:QPREFX)) { $env:QPREFIX = '-- ' }
 
-function Announce ([String] $msg) { 
+function Announce ([String] $Prompt) { 
+  $final = [string]::Format("{0}{1}", $env:QPREFIX, $Prompt)
   $stdout=[System.Console]::OpenStandardOutput()
-  $buffer=[System.Text.Encoding]::ASCII.GetBytes($qbackup + $msg)
-  $stdout.Write($buffer, 0, $msg.Length+$qprefix.Length)
+  $buffer=[System.Text.Encoding]::ASCII.GetBytes($final)
+  $stdout.Write($buffer, 0, $final.Length)
 }
 
-function Info ([String] $msg) { 
-  Write-Output ($qprefix + $msg)
+function Info ([string] $InputObject) { 
+  Write-Output ($env:QPREFIX + $InputObject)
 }
 
-function Quote([String] $msg) {
-  return [string]::Format('"{0}"',$msg.Replace('"','\"'))
+function CygPath([String] $WindowsPath) {
+  $PathItem = Get-Item $WindowsPath
+  $RelativePath = (Split-Path $PathItem.FullName -NoQualifier).Substring(1)
+  $CygPath = (Join-Path 'cygdrive' (Join-Path $PathItem.PSDrive.Name $RelativePath))
+  return ('/'+$CygPath.Replace('\','/'))
 }
 
-function CygPath([String] $p) {
-  $item = Get-Item $p
-  $r = (Split-Path $item.FullName -NoQualifier).Substring(1)
-  $p = (Join-Path 'cygdrive' (Join-Path $item.PSDrive.Name $r))
-  return ('/'+$p.Replace('\','/'))
-}
 
-function Borg([String] $command) {
-  Info ('borg ' + $command)
-  & $env:ComSpec /c ([string]::Format('"{0}" {1}', $borgbat, $command))
+###########################################################################
+
+# PARSE CONFIGURATION
+
+$defaults = @{  
+  binary = 'borg'
+; bflags = '--stats --list --filter=ME'
+; remote = $null
+; format = 'yyyy-MM-dd_HH-mm-ss'
+; pruned = '--keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20'
 }
 
 $stats = @{}
@@ -67,20 +79,30 @@ if (-Not $stats.containsKey('secret') -Or $SetSecret.IsPresent) {
   }
 }
 
-'remote', 'binary' | ForEach {
-  if (-Not $stats.containsKey($_)) {
-    $nv = Read-Host ('provide value for setting ' + $_)
-    $stats.Add($_, $nv)
-  } elseif ($Configure.IsPresent) {
-    Write-Output    ('current value for setting ' + $_ + ': ' + $stats[$_])
-    $nv = Read-Host ('enter a new value or leave blank')
-    if (-Not [string]::IsNullOrWhiteSpace($nv)) {
-      $stats[$_] = $nv 
+$defaults.GetEnumerator() | ForEach {
+  if (-Not $stats.containsKey($_.Name)) {
+    if ($_.Value -Eq $null) {
+      $v = Read-Host ('provide value for setting ' + $_.Name)
+    } else {
+      $v = $_.Value
     }
+    $stats.Add($_.Name, $v)
+  }
+}
+
+if ($Configure.IsPresent) {
+  Info 'Configuration: Enter new value or nothing to leave unchanged'
+  $defaults.GetEnumerator() | ForEach {
+    $v = Read-Host ($_.Name + ' [' + $stats[$_.Name] + ']')  
+    if (-Not [string]::IsNullOrWhiteSpace($v)) { $stats[$_.Name] = $v }
   }
 }
 
 $stats | ConvertTo-Json | Set-Content $QBSettingsFile
+
+###########################################################################
+
+# OUTPUT PASSPHRASE MODE
 
 if ($IddQd.IsPresent) {
   $passwod = $stats.secret | ConvertTo-SecureString
@@ -90,6 +112,10 @@ if ($IddQd.IsPresent) {
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
   Exit 0
 }
+
+###########################################################################
+
+# SETUP ENVIRONMENT FOR BORG
 
 $env:BORG_REPO = $stats.remote
 $env:BORG_PASSCOMMAND = [string]::Format(
@@ -102,11 +128,15 @@ if ($stats.containsKey('binary')) {
 }
 
 if ($Init.IsPresent) {
-  Borg 'init -e repokey'
+  borg.bat init -e repokey
 } 
 
+###########################################################################
+
+# MAIN BACKUP SCRIPT
+
 if ($Borg.IsPresent) {
-  Borg $BorgArguments
+  borg.bat $brgs
 } elseif (-Not [string]::IsNullOrWhiteSpace($BackupPath)) {
   $Backup = Get-Item $BackupPath
   $Drive = $Backup.PSDrive.Name
@@ -116,33 +146,44 @@ if ($Borg.IsPresent) {
   $sc = $ShadowCopyList.Create($Drive + ':\','ClientAccessible');
   if ($sc.ReturnValue -eq 0) {
     Write-Output ('created copy ' + $sc.ShadowID)
-    $query = 'SELECT * FROM Win32_ShadowCopy WHERE ID=' + (Quote $sc.ShadowID)
+    $query = 'SELECT * FROM Win32_ShadowCopy WHERE ID="'+$sc.ShadowID+'"'
     $scobj = Get-WmiObject -Query $query
     if ($scobj.ID -Ne $sc.ShadowID) {
       Write-Error 'fatal: WMI query did not return correct shadow copy'
     } else {
       try {
-        Write-Verbose ('root: ' + $scobj.DeviceObject)
         $tmpd = [System.IO.Path]::GetTempFileName();
         $link = Join-Path $tmpd $Drive
-        Write-Verbose ('base: ' + $tmpd)
         Remove-Item $tmpd;
         New-Item -Type directory -Path $tmpd | Out-Null;
-        Write-Verbose ('link: ' + $link)
-        (&$env:ComSpec /c mklink /j (Quote $link) (Quote ($scobj.DeviceObject+'\'))) | Out-Null 
+        & $env:ComSpec /c mklink /j $link ($scobj.DeviceObject+'\') | Write-Verbose
         if ($LASTEXITCODE -Ne 0) {
           Write-Error 'critical error: unable to link shadow.'
         } else {
           try {
             $relpath = Join-Path $Drive $BackupNoDrivePath
-            $archive = (Get-Date).ToString('yyyy-MM-dd_HH-mm-ss')
+            $logname = (Get-Date).ToString($stats.format)
+            $aclfile = ''
+            $archive = '::'+$logname
+            $logname = $logname+'.log'
+
             Push-Location $tmpd
-            Info 'saving permissions to file .acls'
-            & IcAcls (Quote (Join-Path $tmpd $relpath)) /save .acls /T /C /Q 2>&1 | Out-Null 
-            Borg ([string]::Format('create -C zlib,9 --stats ::{0} .acls "{1}"',
-                $archive, $relpath.Replace('\','/') ))
+            if ($ACLs.IsPresent) {
+              Info 'saving permissions to file .acls'
+              $aclfile = '.acls'
+              IcAcls (Join-Path $tmpd $relpath) /save $aclfile /T /C /Q | Write-Verbose 
+            }
+
+            $crgs = ($stats.bflags.split() + $brgs) | Select-Object -Unique 
+            borg.bat create -C "zlib,9" $crgs $archive $aclfile $relpath.Replace('\','/') | Tee-Object -Variable l
+            if ($Log.IsPresent) {
+              Out-File -Append -FilePath (Join-Path $PSScriptRoot $logname) -InputObject $l
+            }
             Pop-Location
-            Borg 'prune --keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20'
+
+            if ($Pruned.IsPresent) {
+              borg.bat prune $stats.pruned.split()
+            }
           } finally {
             Pop-Location
             Info 'deleting linked directory'

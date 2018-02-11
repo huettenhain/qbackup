@@ -10,4 +10,5 @@ goto :bash
  set %1=!qpath!
  goto :eof
 :bash
- "!qr!cygbash.bat" --noprofile --norc --login -c "source \"!borgve!\" && borg %*"
+ echo %QPREFIX%borg %*
+ 2>&1 "!qr!cygbash.bat" --noprofile --norc --login -c "source \"!borgve!\" && borg %*"
