@@ -21,17 +21,16 @@ $SSHKeyFileName = Join-Path $PSScriptRoot 'qbackup.sshkey'
 $QBSettingsFile = Join-Path $PSScriptRoot 'qbackup.json'
 
 $borgbat = Join-Path $PSScriptRoot 'borg.bat'
-
-$qbackup = 'QBACKUP: '
+$qprefix = '-- '
 
 function Announce ([String] $msg) { 
   $stdout=[System.Console]::OpenStandardOutput()
   $buffer=[System.Text.Encoding]::ASCII.GetBytes($qbackup + $msg)
-  $stdout.Write($buffer, 0, $msg.Length+$qbackup.Length)
+  $stdout.Write($buffer, 0, $msg.Length+$qprefix.Length)
 }
 
 function Info ([String] $msg) { 
-  Write-Output ($qbackup + $msg)
+  Write-Output ($qprefix + $msg)
 }
 
 function Quote([String] $msg) {
