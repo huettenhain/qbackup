@@ -1,4 +1,4 @@
-Param( [Switch] $x32 )
+Param( [string] $CygwinPath )
 
 $borg_env = 'venv'
 $borg_ver = '1.1.2'
@@ -15,38 +15,63 @@ try {
   Write-Output '-- looking for existing cygwin path in registry.'
   $cyg_root = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Cygwin\Setup' -Name rootdir).rootdir
   Write-Output('-- found cygwin install here: ' + $cyg_root)
+  if ($PSBoundParameters.ContainsKey('CygwinPath')) {
+    $replacePath = $null
+    while ($replacePath -Eq $null) {
+      $yq = Read-Host '-- would you like to use this one rather than the one you specified? [Yn]'
+      if ($yq) { $yq = $yq.ToUpper() } else { $yq = 'Y' }
+      if ($yq[0] -Eq 'Y') {
+        $replacePath = $false
+      } elseif ($yq[0] -Eq 'N') {
+        $replacePath = $true
+      }
+    }
+    if ($replacePath) {
+      $cyg_root = $CygwinPath
+    }
+  } 
 } catch [System.Management.Automation.PSArgumentException], [System.Management.Automation.ItemNotFoundException] {
-  $cyg_root = 'c:\cygwin'
-  Write-Output('-- nothing found, using: ' + $cyg_root)
+  if ($PSBoundParameters.ContainsKey('CygwinPath')) {
+    $cyg_root = $CygwinPath
+    Write-Output('-- nothing found, using: ' + $cyg_root)
+  } else {
+    $cyg_root = Read-Host('-- please specify a cygwin location [enter nothing to abort]')
+    if ($cyg_root -Eq $null) { Exit 0 }
+  }
 } finally {
   $ErrorActionPreference = "continue"
 }
 
 try {
-  $cyg_pkdb = Get-Content($cyg_root + '\etc\setup\installed.db')
-  $cyg_inst = $false 
-  $cyg_pack.Split(",") | ForEach-Object {
-    $package = $_    
-    $package_found = $false    
-    ($cyg_pkdb).split([Environment]::NewLine) | ForEach-Object { 
-      $info=($_).split(' ')
-      if ($info[0] -eq $package) {
-        $package_found = $true 
+  $cyg_pkg_path = Join-Path $cyg_root 'etc\setup\installed.db'
+  if (Test-Path $cyg_pkg_path) {
+    $cyg_pkdb = Get-Content($cyg_pkg_path)
+    $cyg_inst = $false 
+    $cyg_pack.Split(",") | ForEach-Object {
+      $package = $_    
+      $package_found = $false    
+      ($cyg_pkdb).split([Environment]::NewLine) | ForEach-Object { 
+        $info=($_).split(' ')
+        if ($info[0] -eq $package) {
+          $package_found = $true 
+        }
+      }
+      if (-Not ($package_found)) {
+        Write-Output('-- package missing: ' + $package)
+        $cyg_inst = $true
       }
     }
-    if (-Not ($package_found)) {
-      Write-Output('-- package missing: ' + $package)
-      $cyg_inst = $true
-    }
+  } else {
+    Write-Output('-- installing fresh cygwin 64 to ' + $cyg_root)
   }
 } catch {
-  $cyg_inst = $false
+  $cyg_inst = $true
 }
 
+
 if ($cyg_inst) { 
-  $cygwinsetup = './setup-x86'
-  if (!$x32) { $cygwinsetup += '_64' }
-  $cygwinsetup += '.exe'
+  $cygwinsetup = 'setup-x86_64.exe'
+  $cygwinsetuppath = (Join-Path $PSScriptRoot $cygwinsetup)
 
   $carg  = ' --wait --no-shortcuts --delete-orphans --quiet-mode'
   $carg += [string]::Format(' --packages "{0}"', $cyg_pack)
@@ -55,10 +80,10 @@ if ($cyg_inst) {
   $carg += [string]::Format(' --local-package-dir "{0}"', $cyg_temp)
 
   Write-Output('-- downloading cygwin setup executable.')
-  $Web.DownloadFile('http://cygwin.com/' + $cygwinsetup, $cygwinsetup)
+  $Web.DownloadFile('http://cygwin.com/' + $cygwinsetup, $cygwinsetuppath)
 
   Write-Output('-- starting cygwin installer process.')
-  Start-Process -Wait -FilePath $cygwinsetup -ArgumentList $carg
+  Start-Process -Wait -FilePath $cygwinsetuppath -ArgumentList $carg
 } else {
   Write-Output('-- all required packages already installed.')
 }
