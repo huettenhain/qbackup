@@ -55,7 +55,7 @@ function CygPath([String] $WindowsPath) {
 
 $defaults = @{  
   binary = 'borg'
-; bflags = '--stats --list --filter=ME'
+; bflags = '--compression zlib,9 --stats --list --filter=ME'
 ; remote = $null
 ; format = 'yyyy-MM-dd_HH-mm-ss'
 ; pruned = '--keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20'
@@ -175,7 +175,7 @@ if ($Borg.IsPresent) {
             }
 
             $crgs = ($stats.bflags.split() + $brgs) | Select-Object -Unique 
-            borg.bat create -C "zlib,9" $crgs $archive $aclfile $relpath.Replace('\','/') | Tee-Object -Variable l
+            borg.bat create $crgs $archive $aclfile $relpath.Replace('\','/') | Tee-Object -Variable l
             if ($Log.IsPresent) {
               Out-File -Append -FilePath (Join-Path $PSScriptRoot $logname) -InputObject $l
             }
