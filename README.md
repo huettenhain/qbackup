@@ -33,7 +33,7 @@ It will then hand over to [Cygwin]'s bash to do the following:
 
 ## The Backup Script
 
-You can call qBackup in one of the following ways, but one rule always holds:
+You can call qBackup in one of the following ways:
 
 #### `qbackup.ps1 -IDDQD` 
 This command outputs the backup encryption passphrase to stdout. It exists so qBackup can set the `BORG_PASSCOMMAND` environment variable to `qBackup.ps1 -IDDQD`. 
@@ -43,7 +43,7 @@ The qBackup configuration is stored in a JSON file called `qbackup.json`. If the
 ```json
 {
     "binary":  "borg",
-    "bflags":  "--stats --list --filter=ME",
+    "bflags":  "--compression zlib,9 --stats --list --filter=ME",
     "format":  "yyyy-MM-dd_HH-mm-ss",
     "pruned":  "--keep-daily 30 --keep-weekly 52 --keep-monthly 12 --keep-yearly 20"
 }
@@ -62,7 +62,7 @@ The command `-Configure` is a (debatably) convenient way to change these setting
 
 #### `qbackup.ps1 -Borg [BORGARGS]` 
 
-Simply run borg with the specified arguments. The `BORG_REPO`, `BORG_PASSCOMMAND`, `BORG_RSH` and `BORG_REMOTE_PATH` environment variables will be set, so you can e.g. simply call `qbackup.ps1 list` to list your remote archives.
+Simply run borg with the specified arguments. The `BORG_REPO`, `BORG_PASSCOMMAND`, `BORG_RSH` and `BORG_REMOTE_PATH` environment variables will be set, so you can e.g. simply call `qbackup.ps1 -Borg list` to list your remote archives.
 
 #### `qbackup.ps1 [-ACLs] [-Log] [-Pruned] [-Init]  DIRECTORY [BORGARGS]`
 
